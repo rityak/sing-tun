@@ -62,6 +62,7 @@ func New(options Options) (WinTun, error) {
 	}
 	session, err := adapter.StartSession(0x800000)
 	if err != nil {
+		adapter.Close()
 		return nil, err
 	}
 	nativeTun.session = session
@@ -70,6 +71,9 @@ func New(options Options) (WinTun, error) {
 	if err != nil {
 		session.End()
 		adapter.Close()
+		if nativeTun.fwpmSession != 0 { // strict route opened the WFP engine before failing
+			winsys.FwpmEngineClose0(nativeTun.fwpmSession)
+		}
 		return nil, err
 	}
 	return nativeTun, nil
@@ -138,9 +142,11 @@ func (t *NativeTun) configure() error {
 			} else {
 				err = luid.AddRoute(routeRange, gateway6, 0)
 			}
-		}
-		if err != nil {
-			return err
+			// Each error used to overwrite the previous one, so only the last
+			// route's failure was reported.
+			if err != nil && !errors.Is(err, windows.ERROR_OBJECT_ALREADY_EXISTS) {
+				return E.Cause(err, "add route ", routeRange)
+			}
 		}
 		err = windnsapi.FlushResolverCache()
 		if err != nil {
