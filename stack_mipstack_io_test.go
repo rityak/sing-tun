@@ -368,7 +368,12 @@ func TestMipsWindowsReadFailureExitsReadLoop(t *testing.T) {
 		readFailure: errors.New("send ring corrupt"),
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	s := &Mipstack{tun: d, logger: logger.NOP()}
+	// readLoop configures checksum offload on the stack for system devices.
+	stack, err := mipstack.New(mipstack.Config{LocalAddresses: []netip.Prefix{netip.MustParsePrefix("198.18.0.1/30")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Mipstack{tun: d, logger: logger.NOP(), stack: stack}
 	done := make(chan struct{})
 	go func() { s.readLoop(); close(done) }()
 	select {
