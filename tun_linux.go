@@ -303,7 +303,10 @@ func open(name string, vnetHdr bool) (int, error) {
 func (t *NativeTun) configure(tunLink netlink.Link) error {
 	err := netlink.LinkSetMTU(tunLink, int(t.options.MTU))
 	if errors.Is(err, unix.EPERM) {
-		// unprivileged
+		// unprivileged; the device was still opened with IFF_VNET_HDR if GSO was requested
+		if t.options.GSO {
+			return t.enableGSO()
+		}
 		return nil
 	} else if err != nil {
 		return err
@@ -329,11 +332,13 @@ func (t *NativeTun) configure(tunLink netlink.Link) error {
 	}
 
 	if t.options.GSO {
+		// The device was opened with IFF_VNET_HDR, so the kernel prefixes every
+		// packet with a virtio header whether or not offload could be enabled.
+		// Continuing without vnetHdr would parse that header as IP (miray P-008);
+		// fail so the caller can reopen without GSO.
 		err = t.enableGSO()
 		if err != nil {
-			if t.options.Logger != nil {
-				t.options.Logger.Warn(err)
-			}
+			return err
 		}
 	}
 
