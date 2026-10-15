@@ -696,10 +696,7 @@ func (s *System) processIPv4UDP(ipHdr header.IPv4, udpHdr header.UDP) error {
 	if !destination.Addr().IsGlobalUnicast() {
 		return nil
 	}
-	data := buf.As(udpHdr.Payload())
-	if data.Len() == 0 {
-		return nil
-	}
+	data := buf.As(udpHdr.Payload()) // an empty datagram is valid and forwarded, as by the other stacks
 	metadata := M.Metadata{
 		Source:      M.SocksaddrFromNetIP(source),
 		Destination: M.SocksaddrFromNetIP(destination),
@@ -725,10 +722,7 @@ func (s *System) processIPv6UDP(ipHdr header.IPv6, udpHdr header.UDP) error {
 	if !destination.Addr().IsGlobalUnicast() {
 		return nil
 	}
-	data := buf.As(udpHdr.Payload())
-	if data.Len() == 0 {
-		return nil
-	}
+	data := buf.As(udpHdr.Payload()) // an empty datagram is valid and forwarded, as by the other stacks
 	metadata := M.Metadata{
 		Source:      M.SocksaddrFromNetIP(source),
 		Destination: M.SocksaddrFromNetIP(destination),
