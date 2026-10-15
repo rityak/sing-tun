@@ -375,6 +375,9 @@ func (s *System) processIPv4(ipHdr header.IPv4) (writeBack bool, err error) {
 	if destination == s.broadcastAddr || !destination.IsGlobalUnicast() {
 		return
 	}
+	if !transportHeaderValid(ipHdr.TransportProtocol(), ipHdr.Payload()) {
+		return false, E.New("ipv4: truncated transport header")
+	}
 	writeBack = true
 	switch ipHdr.TransportProtocol() {
 	case header.TCPProtocolNumber:
@@ -395,6 +398,9 @@ func (s *System) processIPv6(ipHdr header.IPv6) (writeBack bool, err error) {
 	if !ipHdr.DestinationAddr().IsGlobalUnicast() {
 		return
 	}
+	if !transportHeaderValid(ipHdr.TransportProtocol(), ipHdr.Payload()) {
+		return false, E.New("ipv6: truncated transport header")
+	}
 	writeBack = true
 	switch ipHdr.TransportProtocol() {
 	case header.TCPProtocolNumber:
@@ -409,6 +415,27 @@ func (s *System) processIPv6(ipHdr header.IPv6) (writeBack bool, err error) {
 		writeBack = false
 	}
 	return
+}
+
+// transportHeaderValid reports whether payload holds a complete transport
+// header: the processors below index it without further checks, and a short
+// packet written to the TUN by any local process would panic the stack.
+func transportHeaderValid(protocol tcpip.TransportProtocolNumber, payload []byte) bool {
+	switch protocol {
+	case header.TCPProtocolNumber:
+		if len(payload) < header.TCPMinimumSize {
+			return false
+		}
+		offset := int(header.TCP(payload).DataOffset())
+		return offset >= header.TCPMinimumSize && offset <= len(payload)
+	case header.UDPProtocolNumber:
+		return len(payload) >= header.UDPMinimumSize
+	case header.ICMPv4ProtocolNumber:
+		return len(payload) >= header.ICMPv4MinimumSize
+	case header.ICMPv6ProtocolNumber:
+		return len(payload) >= header.ICMPv6MinimumSize
+	}
+	return true
 }
 
 func (s *System) processIPv4TCP(ipHdr header.IPv4, tcpHdr header.TCP) (bool, error) {
