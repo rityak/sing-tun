@@ -355,6 +355,7 @@ func (s *System) acceptLoop(listener net.Listener, tcpNat *TCPNat) {
 		session := tcpNat.LookupBack(connPort)
 		if session == nil {
 			s.logger.Trace(E.New("unknown session with port ", connPort))
+			_ = conn.Close() // nothing else owns it
 			continue
 		}
 		go func() {
