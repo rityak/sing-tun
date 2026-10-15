@@ -5,6 +5,7 @@ package tun
 import (
 	"context"
 	"net/netip"
+	"runtime"
 	"time"
 
 	E "github.com/metacubex/sing/common/exceptions"
@@ -157,17 +158,18 @@ func NewGVisorStackWithOptions(ep stack.LinkEndpoint, opts stack.NICOptions) (*s
 	})
 	ipStack.SetSpoofing(DefaultNIC, true)
 	ipStack.SetPromiscuousMode(DefaultNIC, true)
-	bufSize := 20 * 1024
-	ipStack.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpip.TCPReceiveBufferSizeRangeOption{
-		Min:     1,
-		Default: bufSize,
-		Max:     bufSize,
-	})
-	ipStack.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpip.TCPSendBufferSizeRangeOption{
-		Min:     1,
-		Default: bufSize,
-		Max:     bufSize,
-	})
+	// The buffers used to be fixed at 20 KiB, a window that capped every TCP
+	// flow at 20 KiB per RTT (miray S-012). Use gVisor's defaults and let
+	// moderate receive buffering grow them, as sing-box does; these are limits,
+	// memory is taken as data queues. Mobile platforms keep small limits.
+	receive := tcpip.TCPReceiveBufferSizeRangeOption{Min: tcp.MinBufferSize, Default: tcp.DefaultReceiveBufferSize, Max: 8 << 20}
+	send := tcpip.TCPSendBufferSizeRangeOption{Min: tcp.MinBufferSize, Default: tcp.DefaultSendBufferSize, Max: 6 << 20}
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		receive.Default, receive.Max = 1<<15, 1<<17
+		send.Default, send.Max = 1<<15, 1<<17
+	}
+	ipStack.SetTransportProtocolOption(tcp.ProtocolNumber, &receive)
+	ipStack.SetTransportProtocolOption(tcp.ProtocolNumber, &send)
 	sOpt := tcpip.TCPSACKEnabled(true)
 	ipStack.SetTransportProtocolOption(tcp.ProtocolNumber, &sOpt)
 	mOpt := tcpip.TCPModerateReceiveBufferOption(true)
