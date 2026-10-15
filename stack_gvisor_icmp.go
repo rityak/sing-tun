@@ -148,7 +148,8 @@ func (f *ICMPForwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.Pa
 			}
 			if action != nil {
 				// TODO: handle error
-				pkt.IncRef()
+				// icmpWritePacketBuffer copies the packet, so no reference is taken
+				// (as on the IPv4 path); an IncRef here leaked every packet.
 				_ = icmpWritePacketBuffer(action, pkt)
 				return true
 			}

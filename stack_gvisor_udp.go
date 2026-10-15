@@ -49,6 +49,7 @@ func (f *UDPForwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.Pac
 	gBuffer.Apply(func(view *buffer.View) {
 		sBuffer.Write(view.AsSlice())
 	})
+	gBuffer.Release() // ToBuffer took references on the packet's views
 	f.handler.NewPacket(
 		f.ctx,
 		upstreamMetadata.Source.AddrPort(),
