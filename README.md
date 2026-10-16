@@ -1,24 +1,16 @@
 # sing-tun
 
-Simple transparent proxy library.
+TUN-интерфейс и стеки system и gvisor.
 
-For Linux, Windows, macOS and iOS.
+Форк [metacubex/sing-tun](https://github.com/metacubex/sing-tun) для [miray](https://github.com/rityak/miray). Наш код — в ветке `miray`.
 
-## License
+## Что изменено
 
-```
-Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
-```
+- Если GSO не включился, это ошибка, а не предупреждение: TUN не остаётся с virtio-заголовком.
+- Стек system отбрасывает пакеты с обрезанным TCP/UDP/ICMP-заголовком. Раньше такой пакет ронял процесс.
+- Стек system закрывает принятое соединение без NAT-сессии и пропускает пустые UDP-датаграммы.
+- gVisor освобождает клон UDP-нагрузки, убран лишний `IncRef` ICMPv6.
+- gVisor: буфер TCP 1 МиБ с ростом до 8/6 МиБ вместо 20 КиБ, как в sing-box.
+- UDP через mipstack: объект для ответа создаётся, только когда он нужен.
+- Windows: при ошибке запуска освобождаются адаптер и WFP, видны ошибки всех маршрутов.
+- Влиты изменения апстрима (ветка `meta`) до 2026-10-08.
