@@ -102,7 +102,7 @@ func (s *Mipstack) Start() error {
 			_ = stack.Close()
 		}
 	}()
-	_, err = mipstack.NewTCPForwarder(stack, mipstack.TCPForwarderOptions{}, s.forwardTCP)
+	_, err = mipstack.NewTCPForwarder(stack, mipstack.TCPForwarderOptions{MaxInFlight: mipsTCPMaxInFlight}, s.forwardTCP)
 	if err != nil {
 		return err
 	}

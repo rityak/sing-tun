@@ -24,7 +24,7 @@ func TestMipsFamiliesWithoutInterfaceAddresses(t *testing.T) {
 					if err := init(nil).WritePacket(b, m.Destination); err != nil {
 						t.Error(err)
 					}
-				}}, func(o *StackOptions) {
+				}, tcp: acceptTCP}, func(o *StackOptions) {
 					if configuration != "ipv4" {
 						o.TunOptions.Inet4Address = nil
 					}
