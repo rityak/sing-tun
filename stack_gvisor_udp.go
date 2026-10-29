@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/metacubex/sing/common/buf"
 	E "github.com/metacubex/sing/common/exceptions"
@@ -58,6 +59,7 @@ func (f *UDPForwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.Pac
 		func(natConn N.PacketConn) N.PacketWriter {
 			return &UDPBackWriter{
 				stack:         f.stack,
+				packet:        pkt.IncRef(),
 				source:        id.RemoteAddress,
 				sourcePort:    id.RemotePort,
 				sourceNetwork: proto,
@@ -67,15 +69,50 @@ func (f *UDPForwarder) HandlePacket(id stack.TransportEndpointID, pkt *stack.Pac
 	return true
 }
 
+// UDPBackWriter answers the app; until the outcome of the session's dial it keeps
+// the datagram to refuse it with ICMP port unreachable, as sing-box does (T-154):
+// HandshakeFailure refuses, HandshakeSuccess or the first reply lets it go.
 type UDPBackWriter struct {
 	access        sync.Mutex
 	stack         *stack.Stack
+	packet        *stack.PacketBuffer
+	decided       atomic.Bool
 	source        tcpip.Address
 	sourcePort    uint16
 	sourceNetwork tcpip.NetworkProtocolNumber
 }
 
+func (w *UDPBackWriter) HandshakeSuccess() error {
+	if w.decided.Load() {
+		return nil
+	}
+	w.access.Lock()
+	defer w.access.Unlock()
+	if w.packet != nil {
+		w.packet.DecRef()
+		w.packet = nil
+	}
+	w.decided.Store(true)
+	return nil
+}
+
+func (w *UDPBackWriter) HandshakeFailure(error) error {
+	w.access.Lock()
+	defer w.access.Unlock()
+	if w.packet == nil {
+		return os.ErrInvalid
+	}
+	err := gWriteUnreachable(w.stack, w.packet)
+	w.packet.DecRef()
+	w.packet = nil
+	w.decided.Store(true)
+	return err
+}
+
 func (w *UDPBackWriter) WritePacket(packetBuffer *buf.Buffer, destination M.Socksaddr) error {
+	if !w.decided.Load() {
+		_ = w.HandshakeSuccess()
+	}
 	if !destination.IsIP() {
 		return E.Cause(os.ErrInvalid, "invalid destination")
 	} else if destination.IsIPv4() && w.sourceNetwork == header.IPv6ProtocolNumber {
